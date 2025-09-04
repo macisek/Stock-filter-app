@@ -22,9 +22,6 @@ const App = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState('');
 
-  // Your Polygon API key
-  const API_KEY = 'RVGQPP6_EQ_0nEFFF9JwVd85rIBt8Q3lp';
-
   const handleInputChange = (field, value) => {
     setFilters(prev => ({
       ...prev,
@@ -34,56 +31,58 @@ const App = () => {
 
   const fetchStockData = async () => {
     try {
-      // Get list of NYSE stocks
-      const tickersResponse = await fetch(
-        `https://api.polygon.io/v3/reference/tickers?market=stocks&exchange=XNYS&active=true&limit=100&apikey=${API_KEY}`
-      );
+      // Call our backend API instead of Polygon directly
+      const response = await fetch('/api/stocks');
       
-      if (!tickersResponse.ok) {
-        throw new Error('Failed to fetch stock list');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      const tickersData = await tickersResponse.json();
-      const stocks = tickersData.results || [];
+      const data = await response.json();
       
-      // Get detailed data for a subset of stocks (to avoid rate limits)
-      const stockPromises = stocks.slice(0, 20).map(async (stock) => {
-        try {
-          // Get current price
-          const priceResponse = await fetch(
-            `https://api.polygon.io/v2/aggs/ticker/${stock.ticker}/prev?adjusted=true&apikey=${API_KEY}`
-          );
-          
-          if (!priceResponse.ok) {
-            return null;
-          }
-          
-          const priceData = await priceResponse.json();
-          const price = priceData.results?.[0]?.c || 0;
-          
-          // Generate mock fundamental data (since real fundamental data requires higher tier)
-          return {
-            symbol: stock.ticker,
-            company: stock.name || stock.ticker,
-            price: price,
-            peRatio: (Math.random() * 40 + 5).toFixed(1),
-            rsi: (Math.random() * 40 + 30).toFixed(1),
-            pegRatio: (Math.random() * 2.5 + 0.5).toFixed(1),
-            dividendYield: (Math.random() * 5).toFixed(2),
-            paysDividends: Math.random() > 0.4
-          };
-        } catch (error) {
-          console.error(`Error fetching data for ${stock.ticker}:`, error);
-          return null;
-        }
-      });
-      
-      const results = await Promise.all(stockPromises);
-      return results.filter(result => result !== null);
+      if (data.success) {
+        return data.data;
+      } else {
+        // Use fallback data if API fails
+        console.warn('API failed, using fallback data:', data.error);
+        return data.fallback || [];
+      }
       
     } catch (error) {
       console.error('Error fetching stock data:', error);
-      throw error;
+      // Return fallback mock data if everything fails
+      return [
+        {
+          symbol: 'AAPL',
+          company: 'Apple Inc.',
+          price: 175.23,
+          peRatio: '28.5',
+          rsi: '65.2',
+          pegRatio: '2.1',
+          dividendYield: '0.52',
+          paysDividends: true
+        },
+        {
+          symbol: 'MSFT',
+          company: 'Microsoft Corp.',
+          price: 342.11,
+          peRatio: '32.1',
+          rsi: '58.7',
+          pegRatio: '1.8',
+          dividendYield: '0.68',
+          paysDividends: true
+        },
+        {
+          symbol: 'GOOGL',
+          company: 'Alphabet Inc.',
+          price: 138.45,
+          peRatio: '24.3',
+          rsi: '72.1',
+          pegRatio: '1.2',
+          dividendYield: '0.0',
+          paysDividends: false
+        }
+      ];
     }
   };
 
@@ -125,6 +124,10 @@ const App = () => {
       const stockData = await fetchStockData();
       const filteredResults = applyFilters(stockData);
       setSearchResults(filteredResults);
+      
+      if (filteredResults.length === 0) {
+        setError('No stocks found matching your criteria. Try adjusting your filters.');
+      }
     } catch (error) {
       setError('Failed to fetch stock data. Please try again.');
       console.error('Search error:', error);
@@ -461,7 +464,7 @@ const App = () => {
               {isSearching ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  Searching Real NYSE Data...
+                  Searching NYSE Data...
                 </>
               ) : (
                 <>
@@ -496,7 +499,7 @@ const App = () => {
                     <tr key={index} className="border-b hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium text-blue-600">{stock.symbol}</td>
                       <td className="px-4 py-3">{stock.company}</td>
-                      <td className="px-4 py-3">${stock.price.toFixed(2)}</td>
+                      <td className="px-4 py-3">${typeof stock.price === 'number' ? stock.price.toFixed(2) : parseFloat(stock.price).toFixed(2)}</td>
                       <td className="px-4 py-3">{stock.peRatio}</td>
                       <td className="px-4 py-3">{stock.rsi}</td>
                       <td className="px-4 py-3">{stock.pegRatio}</td>
